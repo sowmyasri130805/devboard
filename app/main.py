@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.database import engine, Base
-
+from app.models import user, todo, post, product
+from app.routers import auth
 # Import all models so they get registered
 from app.models import user, todo, post, product
 
@@ -8,6 +9,9 @@ from app.models import user, todo, post, product
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="DevBoard API", version="1.0.0")
+
+# Include routers
+app.include_router(auth.router)
 
 # Root endpoint
 @app.get("/")
