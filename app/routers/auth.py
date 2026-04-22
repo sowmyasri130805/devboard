@@ -1,77 +1,58 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm  # NEW!
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserResponse, UserLogin
+from app.schemas.user import UserCreate, UserResponse, Token
 from app.utils import hash_password, verify_password
+from app.oauth2 import create_access_token
 
 router = APIRouter(
-    prefix="/auth",       # all routes start with /auth
-    tags=["Authentication"]  # groups in docs
+    prefix="/auth",
+    tags=["Authentication"]
 )
 
 # ─── REGISTER ────────────────────────────────────────────
 @router.post("/register", response_model=UserResponse, status_code=201)
 def register(user: UserCreate, db: Session = Depends(get_db)):
 
-    # Check if email already exists
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Email already registered"
-        )
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Check if username already exists
-    existing_username = db.query(User).filter(User.username == user.username).first()
+    existing_username = db.query(User).filter(
+        User.username == user.username).first()
     if existing_username:
-        raise HTTPException(
-            status_code=400,
-            detail="Username already taken"
-        )
+        raise HTTPException(status_code=400, detail="Username already taken")
 
-    # Hash the password before saving
     hashed = hash_password(user.password)
+    new_user = User(username=user.username, email=user.email, password=hashed)
 
-    # Create new user object
-    new_user = User(
-        username=user.username,
-        email=user.email,
-        password=hashed
-    )
-
-    # Save to database
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-
     return new_user
 
 
 # ─── LOGIN ───────────────────────────────────────────────
-@router.post("/login")
-def login(user: UserLogin, db: Session = Depends(get_db)):
+@router.post("/login", response_model=Token)
+def login(
+    # This accepts form data — works with Swagger UI!
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    # form_data.username is the email field
+    db_user = db.query(User).filter(User.email == form_data.username).first()
 
-    # Find user by email
-    db_user = db.query(User).filter(User.email == user.email).first()
-
-    # Check if user exists
     if not db_user:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password"
-        )
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    # Check if password is correct
-    if not verify_password(user.password, db_user.password):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password"
-        )
+    if not verify_password(form_data.password, db_user.password):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    # For now return success (we'll add JWT token in Module 4!)
+    access_token = create_access_token(data={"user_id": db_user.id})
+
     return {
-        "message": "Login successful!",
-        "user_id": db_user.id,
-        "username": db_user.username
+        "access_token": access_token,
+        "token_type": "bearer"
     }
