@@ -1,7 +1,7 @@
 from fastapi import FastAPI , Depends
 from app.database import engine, Base
 from app.models import user, todo, post, product
-from app.routers import auth, todo as todo_router
+from app.routers import auth, todo as todo_router , post as post_router
 # Import all models so they get registered
 #from app.models import user, todo, post, product
 from app.oauth2 import get_current_user
@@ -15,6 +15,8 @@ app = FastAPI(title="DevBoard API", version="1.0.0")
 # Include routers
 app.include_router(auth.router)
 app.include_router(todo_router.router)
+app.include_router(post_router.router)
+
 
 # Root endpoint
 @app.get("/")
